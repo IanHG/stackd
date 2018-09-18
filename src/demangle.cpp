@@ -5,11 +5,12 @@ namespace stackd
 namespace utility
 {
 
-char* demangle_function_name(const char* mangled_name
-                           , char* output_buffer
-                           , size_t* length
-                           , int* status
-                           )
+char* demangle_function_name
+   (  const char* mangled_name
+   ,  char*       output_buffer
+   ,  size_t*     length
+   ,  int*        status
+   )
 {
 #ifdef __GNUC__
    return abi::__cxa_demangle(mangled_name, output_buffer, length, status);

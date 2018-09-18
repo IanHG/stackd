@@ -4,9 +4,7 @@
 //
 // Ian: I added som further demangling of function pointer value
 //      And some more output
-
-#ifndef STACKD_STACKTRACE_HPP_INCLUDED
-#define STACKD_STACKTRACE_HPP_INCLUDED
+#include "stacktrace.hpp"
 
 //#include <stdio.h>
 #include <iostream>
@@ -22,8 +20,160 @@ namespace stackd
 namespace trace
 {
 
+int backtrace_generic(void **buffer, int size)
+{
+   return ::backtrace(buffer, size);
+}
+
+char** backtrace_symbols_generic(void* const* addrlist, int size)
+{
+   char** symbollist = ::backtrace_symbols(addrlist, size);
+   return symbollist;
+}
+
+/*!
+ * Create stacktrace struct.
+ */
+stacktrace_struct create(unsigned int max_frames)
+{
+   stacktrace_struct stacktrace;
+
+   stacktrace.size     = max_frames + 1;
+   stacktrace.addrlist = (void**)malloc(stacktrace.size);
+   
+   stacktrace.addrlen  = backtrace_generic(stacktrace.addrlist, stacktrace.size);
+   
+   stacktrace.symbollist = backtrace_symbols_generic(stacktrace.addrlist, stacktrace.addrlen);
+
+   return stacktrace;
+}
+
+/*!
+ * De-allocate stacktrace struct.
+ */
+void destroy(stacktrace_struct* stacktrace)
+{
+   if(stacktrace->addrlist)
+   {
+      free(stacktrace->addrlist);
+   }
+   if(stacktrace->symbollist)
+   {
+      free(stacktrace->symbollist);
+   }
+}
+
+/*!
+ *
+ */
+void debug_print(char* str)
+{
+   int i = 0;
+   while(true)
+   {
+      if (str[i] == '\0')
+      {
+         std::cout << "NULL";
+         break;
+      }
+      else
+      {
+         std::cout << str[i];
+      }
+      ++i;
+   }
+   std::cout << "\n" << std::flush;
+}
+
+/*!
+ * Demangle stacktrace names.
+ */
+void demangle(stacktrace_struct* stacktrace)
+{
+   std::ostream& os = std::cout;
+   os << "-----------------------------------------------------------------\n";
+   os << " [DEMANGLED]:\n";
+
+   // allocate string which will be filled with the demangled function name
+   size_t funcnamesize = 256;
+   char*  funcname     = (char*)malloc(funcnamesize);
+   
+   // iterate over the returned symbol lines. skip the first, it is the
+   // address of the backtrace function
+   for (int i = 0; i < stacktrace->addrlen; ++i)
+   {
+      char *begin_name = 0, *begin_offset = 0, *end_offset = 0,
+           *begin_ptr = 0, *end_ptr = 0;
+
+      // find parentheses and +address offset surrounding the mangled name:
+      // ./module(function+0x15c) [0x8048a6d]
+      for (char *p = stacktrace->symbollist[i]; *p; ++p)
+      {
+         if (*p == '(')
+            begin_name = p;
+         else if (*p == '+')
+            begin_offset = p;
+         else if (*p == ')' && begin_offset)
+            end_offset = p;
+         else if (*p == '[')
+            begin_ptr = p;
+         else if (*p == ']')
+         {
+            end_ptr = p;
+            break;
+         }
+      }
+
+      if (begin_name && begin_offset && end_offset && (begin_name <= begin_offset) )
+      {
+         //std::cout << " still process line: " << symbollist[i] << std::endl;
+         *begin_name++   = '\0';
+         *begin_offset++ = '\0';
+         *end_offset     = '\0';
+         *begin_ptr++    = '\0';
+         *end_ptr        = '\0';
+
+         // mangled name is now in [begin_name, begin_offset) and caller
+         // offset in [begin_offset, end_offset). now apply
+         int status;
+         char* ret = utility::demangle_function_name(begin_name, funcname, &funcnamesize, &status);
+
+         char  buffer[256];
+         char* end_addr;
+         long int addr = strtol(begin_ptr, &end_addr, 0);
+
+         bool addr_success = utility::address_to_line((void*)addr, buffer, sizeof(buffer));
+         //if(!addr_success)
+         //{
+         //   os << " could not convert address to line\n";
+         //}
+         
+         if (status == 0) 
+         {
+            if(!funcname) 
+            {
+               funcname = ret; // use possibly realloc()-ed string
+            }
+            os << "  " << stacktrace->symbollist[i] << "(" << funcname << "+" << begin_offset << ") [" <<  buffer << "]\n";
+         }
+         else
+         {
+            os << "  " << stacktrace->symbollist[i] << "(" << begin_name << "+" << begin_offset << ") [" <<  buffer << "]\n";
+         }
+      }
+      else
+      {
+         // couldn't parse the line? print the whole line.
+         os << "  " << stacktrace->symbollist[i] << "\n";
+      }
+   }
+
+   free(funcname);
+}
+
+
 /** Print a demangled stack backtrace of the caller function to FILE* out. */
-void print_stacktrace(std::ostream& os = std::cerr, unsigned int max_frames = 63)
+void print_stacktrace(std::ostream& os, unsigned int max_frames)
 {
    os << "========================== STACK TRACE ==========================\n";
 
@@ -41,7 +191,7 @@ void print_stacktrace(std::ostream& os = std::cerr, unsigned int max_frames = 63
 
    // resolve addresses into strings containing "filename(function+address)",
    // this array must be free()-ed
-   char** symbollist = backtrace_symbols(addrlist, addrlen);
+   char** symbollist = backtrace_symbols_generic(addrlist, addrlen);
 
    // print mangled list
    os << " [MANGLED]:\n";
@@ -69,18 +219,14 @@ void print_stacktrace(std::ostream& os = std::cerr, unsigned int max_frames = 63
 
       // find parentheses and +address offset surrounding the mangled name:
       // ./module(function+0x15c) [0x8048a6d]
-      //std::cout << " process line: " << symbollist[i] << std::endl;
-
       for (char *p = symbollist[i]; *p; ++p)
       {
          if (*p == '(')
             begin_name = p;
          else if (*p == '+')
             begin_offset = p;
-         else if (*p == ')' && begin_offset) {
+         else if (*p == ')' && begin_offset)
             end_offset = p;
-            //break;
-         }
          else if (*p == '[')
             begin_ptr = p;
          else if (*p == ']')
@@ -93,20 +239,20 @@ void print_stacktrace(std::ostream& os = std::cerr, unsigned int max_frames = 63
       if (begin_name && begin_offset && end_offset && (begin_name <= begin_offset) )
       {
          //std::cout << " still process line: " << symbollist[i] << std::endl;
-         *begin_name++ = '\0';
+         *begin_name++   = '\0';
          *begin_offset++ = '\0';
-         *end_offset = '\0';
-         *begin_ptr++ = '\0';
-         *end_ptr = '\0';
+         *end_offset     = '\0';
+         *begin_ptr++    = '\0';
+         *end_ptr        = '\0';
 
          // mangled name is now in [begin_name, begin_offset) and caller
          // offset in [begin_offset, end_offset). now apply
          int status;
          char* ret = utility::demangle_function_name(begin_name, funcname, &funcnamesize, &status);
 
-         char buffer[256];
+         char  buffer[256];
          char* end_addr;
-         long int addr = strtol(begin_ptr,&end_addr,0);
+         long int addr = strtol(begin_ptr, &end_addr, 0);
          //std::cout << begin_ptr << std::endl;
          //std::cout << addr << std::endl;
 
@@ -121,12 +267,6 @@ void print_stacktrace(std::ostream& os = std::cerr, unsigned int max_frames = 63
             if(!funcname) funcname = ret; // use possibly realloc()-ed string
             os << "  " << symbollist[i] << "(" << funcname << "+" << begin_offset << ") [" <<  buffer << "]\n";
          }
-         //else 
-         //{
-         //   // demangling failed. Output function name as a C function with
-         //   // no arguments.
-         //   fprintf(out, "  %s(%s()+%s) [%s]\n", symbollist[i], begin_name, begin_offset, buffer);
-         //}
       }
       else
       {
@@ -146,5 +286,3 @@ void print_stacktrace(std::ostream& os = std::cerr, unsigned int max_frames = 63
 
 } /* namespace trace */
 } /* namespace stackd */
-
-#endif /* STACKD_STACKTRACE_HPP_INCLUDED */

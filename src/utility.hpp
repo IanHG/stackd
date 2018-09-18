@@ -16,8 +16,10 @@ bool get_self_path(char buffer[], size_t size, ssize_t& len);
 // get file+line from function address if we have compiled with debug flag
 bool address_to_line(void* call_addr, char* buffer, size_t size_of_buffer);
 
+//
 std::string wrap_address_to_line(void* call_addr);
 
+//
 template<unsigned I>
 inline std::string return_address()
 {

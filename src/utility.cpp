@@ -50,7 +50,7 @@ bool address_to_line(void* call_addr, char* buffer, size_t size_of_buffer)
    ssize_t len; 
    if(!get_self_path(buff,sizeof(buff),len)) return false;
    const char addr2line_cmd[] = "addr2line -e";
-   const char postfix_cmd[] = "";
+   const char postfix_cmd[]   = "";
    
    // convert address to char array
    char addr[32];
