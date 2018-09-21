@@ -10,8 +10,6 @@ namespace stackd
 namespace utility
 {
 
-char* demangle(const char *name, char *buffer, size_t buflen, int* status);
-
 char* demangle_function_name
    (  const char* mangled_name
    ,  char* output_buffer

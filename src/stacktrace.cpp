@@ -32,6 +32,24 @@ char** backtrace_symbols_generic(void* const* addrlist, int size)
 }
 
 /*!
+ * Allocate symbollist.
+ */
+char** allocate_symbollist(const stacktrace_struct* stacktrace)
+{
+   int size_of_entry = 256;
+   int size      = stacktrace->addrlen;
+   int total     = size * size_of_entry;
+   char** result = (char**)malloc(size * sizeof(char*) + total * sizeof(char));
+   
+   for(int i = 0; i < size; ++i)
+   {
+      result[i] = (char*)((char*)result + size * sizeof(char*) + i * size_of_entry * sizeof(char));
+   }
+
+   return result;
+}
+
+/*!
  * Create stacktrace struct.
  */
 stacktrace_struct create(unsigned int max_frames)
@@ -60,6 +78,10 @@ void destroy(stacktrace_struct* stacktrace)
    if(stacktrace->symbollist)
    {
       free(stacktrace->symbollist);
+   }
+   if(stacktrace->symbollist_demangled)
+   {
+      free(stacktrace->symbollist_demangled);
    }
 }
 
@@ -90,20 +112,19 @@ void debug_print(char* str)
  */
 void demangle(stacktrace_struct* stacktrace)
 {
-   std::ostream& os = std::cout;
-   os << "-----------------------------------------------------------------\n";
-   os << " [DEMANGLED]:\n";
 
    // allocate string which will be filled with the demangled function name
    size_t funcnamesize = 256;
    char*  funcname     = (char*)malloc(funcnamesize);
-   
+
+   stacktrace->symbollist_demangled = allocate_symbollist(stacktrace);
+
    // iterate over the returned symbol lines. skip the first, it is the
    // address of the backtrace function
    for (int i = 0; i < stacktrace->addrlen; ++i)
    {
-      char *begin_name = 0, *begin_offset = 0, *end_offset = 0,
-           *begin_ptr = 0, *end_ptr = 0;
+      char *begin_name = nullptr, *begin_offset = nullptr, *end_offset = nullptr,
+           *begin_ptr  = nullptr, *end_ptr = nullptr;
 
       // find parentheses and +address offset surrounding the mangled name:
       // ./module(function+0x15c) [0x8048a6d]
@@ -126,7 +147,6 @@ void demangle(stacktrace_struct* stacktrace)
 
       if (begin_name && begin_offset && end_offset && (begin_name <= begin_offset) )
       {
-         //std::cout << " still process line: " << symbollist[i] << std::endl;
          *begin_name++   = '\0';
          *begin_offset++ = '\0';
          *end_offset     = '\0';
@@ -137,38 +157,70 @@ void demangle(stacktrace_struct* stacktrace)
          // offset in [begin_offset, end_offset). now apply
          int status;
          char* ret = utility::demangle_function_name(begin_name, funcname, &funcnamesize, &status);
+         if(!funcname && ret) 
+         {
+            funcname = ret; // use possibly realloc()-ed string
+         }
 
          char  buffer[256];
          char* end_addr;
          long int addr = strtol(begin_ptr, &end_addr, 0);
 
          bool addr_success = utility::address_to_line((void*)addr, buffer, sizeof(buffer));
-         //if(!addr_success)
-         //{
-         //   os << " could not convert address to line\n";
-         //}
          
-         if (status == 0) 
+         int nwrite = sprintf(stacktrace->symbollist_demangled[i]         , "%s"      , stacktrace->symbollist[i]);
+         if (status == 0 && ret)
          {
-            if(!funcname) 
-            {
-               funcname = ret; // use possibly realloc()-ed string
-            }
-            os << "  " << stacktrace->symbollist[i] << "(" << funcname << "+" << begin_offset << ") [" <<  buffer << "]\n";
+            nwrite    += sprintf(stacktrace->symbollist_demangled[i] + nwrite, "(%s+%s)" , funcname, begin_offset);
          }
          else
          {
-            os << "  " << stacktrace->symbollist[i] << "(" << begin_name << "+" << begin_offset << ") [" <<  buffer << "]\n";
+            nwrite    += sprintf(stacktrace->symbollist_demangled[i] + nwrite, "(%s+%s)" , begin_name, begin_offset);
          }
+         nwrite    += sprintf(stacktrace->symbollist_demangled[i] + nwrite, " [%s]"    , buffer);
       }
       else
       {
          // couldn't parse the line? print the whole line.
-         os << "  " << stacktrace->symbollist[i] << "\n";
+         int nwrite = sprintf(stacktrace->symbollist_demangled[i], "%s", stacktrace->symbollist[i]);
       }
    }
 
    free(funcname);
+}
+
+/*!
+ *
+ */
+void print(const stacktrace_struct* stacktrace, bool show_all, bool force_mangled)
+{
+   std::ostream& os = std::cout;
+
+   if (  stacktrace->symbollist_demangled && !force_mangled)
+   {
+      os << "-----------------------------------------------------------------\n";
+      os << " [DEMANGLED]:\n";
+
+      for(int i = (show_all ? 0 : 2); i < stacktrace->addrlen; ++i)
+      {
+         os << " " << stacktrace->symbollist_demangled[i] << "\n";
+      }
+   }
+   else if  (  stacktrace->symbollist)
+   {
+      os << "-----------------------------------------------------------------\n";
+      os << " [MANGLED]:\n";
+
+      for(int i = (show_all ? 0 : 2); i < stacktrace->addrlen; ++i)
+      {
+         os << " " << stacktrace->symbollist[i] << "\n";
+      }
+   }
+   else
+   {
+      os << "-----------------------------------------------------------------\n";
+      os << " NO STACKTRACE\n";
+   }
 }
 
 
@@ -238,7 +290,6 @@ void print_stacktrace(std::ostream& os, unsigned int max_frames)
 
       if (begin_name && begin_offset && end_offset && (begin_name <= begin_offset) )
       {
-         //std::cout << " still process line: " << symbollist[i] << std::endl;
          *begin_name++   = '\0';
          *begin_offset++ = '\0';
          *end_offset     = '\0';
@@ -253,8 +304,6 @@ void print_stacktrace(std::ostream& os, unsigned int max_frames)
          char  buffer[256];
          char* end_addr;
          long int addr = strtol(begin_ptr, &end_addr, 0);
-         //std::cout << begin_ptr << std::endl;
-         //std::cout << addr << std::endl;
 
          bool addr_success = utility::address_to_line((void*)addr, buffer, sizeof(buffer));
          if(!addr_success)

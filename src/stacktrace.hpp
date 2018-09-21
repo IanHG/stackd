@@ -17,6 +17,7 @@ struct stacktrace_struct
    int    addrlen    = 0;
    void** addrlist   = nullptr;
    char** symbollist = nullptr;
+   char** symbollist_demangled = nullptr;
 };
 
 /*!
@@ -33,6 +34,11 @@ void destroy(stacktrace_struct* stacktrace);
  *
  */
 void demangle(stacktrace_struct* stacktrace);
+
+/*!
+ *
+ */
+void print(const stacktrace_struct* stacktrace, bool show_all = false, bool force_mangled = false);
 
 /** Print a demangled stack backtrace of the caller function to FILE* out. */
 void print_stacktrace(std::ostream& os = std::cerr, unsigned int max_frames = 63);
