@@ -38,7 +38,7 @@ void demangle(stacktrace_struct* stacktrace);
 /*!
  *
  */
-void print(const stacktrace_struct* stacktrace, bool show_all = false, bool force_mangled = false);
+void print(const stacktrace_struct* stacktrace, std::ostream& os = std::cout, bool show_all = false, bool force_mangled = false);
 
 /** Print a demangled stack backtrace of the caller function to FILE* out. */
 void print_stacktrace(std::ostream& os = std::cerr, unsigned int max_frames = 63);

@@ -1,6 +1,5 @@
-#include "src/stacktrace.hpp"
-
 #include <iostream>
+#include <stackd.hpp>
 
 int main()
 {

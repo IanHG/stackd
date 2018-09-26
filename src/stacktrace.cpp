@@ -192,10 +192,8 @@ void demangle(stacktrace_struct* stacktrace)
 /*!
  *
  */
-void print(const stacktrace_struct* stacktrace, bool show_all, bool force_mangled)
+void print(const stacktrace_struct* stacktrace, std::ostream& os, bool show_all, bool force_mangled)
 {
-   std::ostream& os = std::cout;
-
    if (  stacktrace->symbollist_demangled && !force_mangled)
    {
       os << "-----------------------------------------------------------------\n";
