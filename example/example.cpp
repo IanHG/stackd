@@ -3,7 +3,7 @@
 
 int main()
 {
-   auto stacktrace  = stackd::trace::create();
+   auto stacktrace = stackd::trace::create();
    stackd::trace::demangle(&stacktrace);
    stackd::trace::print   (&stacktrace);
    stackd::trace::destroy (&stacktrace);
