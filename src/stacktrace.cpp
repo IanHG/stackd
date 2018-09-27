@@ -36,7 +36,7 @@ char** backtrace_symbols_generic(void* const* addrlist, int size)
  */
 char** allocate_symbollist(const stacktrace_struct* stacktrace)
 {
-   int size_of_entry = 256;
+   int size_of_entry = 2048;
    int size      = stacktrace->addrlen;
    int total     = size * size_of_entry;
    char** result = (char**)malloc(size * sizeof(char*) + total * sizeof(char));
@@ -120,6 +120,11 @@ void debug_print(char* str)
  */
 void demangle(stacktrace_struct* stacktrace)
 {
+   // Short circuit if we already did the demangling
+   if(stacktrace->symbollist_demangled)
+   {
+      return;
+   }
 
    // allocate string which will be filled with the demangled function name
    size_t funcnamesize = 256;
@@ -165,7 +170,7 @@ void demangle(stacktrace_struct* stacktrace)
          // offset in [begin_offset, end_offset). now apply
          int status;
          char* ret = utility::demangle_function_name(begin_name, funcname, &funcnamesize, &status);
-         if(!funcname && ret) 
+         if(ret) 
          {
             funcname = ret; // use possibly realloc()-ed string
          }
@@ -202,12 +207,14 @@ void demangle(stacktrace_struct* stacktrace)
  */
 void print(const stacktrace_struct* stacktrace, std::ostream& os, bool show_all, bool force_mangled)
 {
+   const int nstackd = 2;
+
    if (  stacktrace->symbollist_demangled && !force_mangled)
    {
       os << "-----------------------------------------------------------------\n";
       os << " [DEMANGLED]:\n";
 
-      for(int i = (show_all ? 0 : 2); i < stacktrace->addrlen; ++i)
+      for(int i = (show_all ? 0 : nstackd); i < stacktrace->addrlen; ++i)
       {
          os << " " << stacktrace->symbollist_demangled[i] << "\n";
       }
@@ -217,7 +224,7 @@ void print(const stacktrace_struct* stacktrace, std::ostream& os, bool show_all,
       os << "-----------------------------------------------------------------\n";
       os << " [MANGLED]:\n";
 
-      for(int i = (show_all ? 0 : 2); i < stacktrace->addrlen; ++i)
+      for(int i = (show_all ? 0 : nstackd); i < stacktrace->addrlen; ++i)
       {
          os << " " << stacktrace->symbollist[i] << "\n";
       }
