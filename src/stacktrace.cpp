@@ -55,8 +55,8 @@ char** allocate_symbollist(const stacktrace_struct* stacktrace)
 void create(stacktrace_struct* stacktrace, unsigned int max_frames)
 {
    stacktrace->size     = max_frames + 1;
-   stacktrace->addrlist = (void**)malloc(stacktrace->size);
-   
+   stacktrace->addrlist = (void**)malloc(sizeof(void*) * stacktrace->size);
+
    stacktrace->addrlen  = backtrace_generic(stacktrace->addrlist, stacktrace->size);
    
    stacktrace->symbollist = backtrace_symbols_generic(stacktrace->addrlist, stacktrace->addrlen);
