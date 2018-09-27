@@ -23,6 +23,11 @@ struct stacktrace_struct
 /*!
  *
  */
+void create(stacktrace_struct* stacktrace, unsigned int max_frames = 63);
+
+/*!
+ *
+ */
 stacktrace_struct create(unsigned int max_frames = 63);
 
 /*!
