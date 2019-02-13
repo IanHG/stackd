@@ -1,5 +1,5 @@
-#ifndef MIDAS_INC_GEN_COMPILER_H_INCLUDED
-#define MIDAS_INC_GEN_COMPILER_H_INCLUDED
+#ifndef STACKD_COMPILER_HPP_INCLUDED
+#define STACKD_COMPILER_HPP_INCLUDED
 
 /**
  * Macros for generating strings from macro names.
@@ -68,4 +68,4 @@
  **/
 #define COMPILER_VERSION_FULL ___xstr(COMPILER_NAME_VERSION)
 
-#endif /* MIDAS_INC_GEN_COMPILER_H_INCLUDED */
+#endif /* STACKD_COMPILER_HPP_INCLUDED */
